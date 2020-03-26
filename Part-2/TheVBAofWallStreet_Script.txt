@@ -1,0 +1,234 @@
+' Clear contents and formatting from Columns I through Q.
+Sub Clear()
+
+    Dim ws As Worksheet
+    Dim i As Integer
+    
+    For Each ws In Worksheets
+    
+        For i = 9 To 17
+            ws.Columns("I:Q").Clear
+        Next i
+        
+    Next ws
+    
+End Sub
+
+'Summarize information for each ticker.
+Sub Summary()
+
+    'Declare variables
+    Dim ws As Worksheet
+    Dim i As Long
+    Dim j As Long
+    Dim k As Long
+    Dim l As Long
+    Dim m As Long
+    Dim lastrow As Long
+    Dim lastrow_target As Long
+    Dim Unique() As String
+    Dim counter As Integer
+    Dim date_open As Long
+    Dim date_close As Long
+    Dim delta_open As Double
+    Dim delta_close As Double
+    Dim delta As Double
+    Dim percent_delta
+    Dim total_vol As LongLong
+    Dim m_increase As Double
+    Dim c_increase As Long
+    Dim m_decrease As Double
+    Dim c_decrease As Long
+    Dim m_total As LongLong
+    Dim c_total As Long
+    
+    'Perform tasks for each worksheet in the workbook
+    For Each ws In Worksheets
+    
+        'Redefine dimension and clear contents of the array.  Array used to store unique ticker values.
+        ReDim Unique(2)
+        
+        'Determine location of last row.
+        lastrow = ws.Cells(Rows.Count, 1).End(xlUp).Row
+            
+        'Perform tasks for each row of the active worksheet.
+        For i = 2 To lastrow
+        
+            'Determine current size of array.
+            sizeUnique = UBound(Unique) - LBound(Unique)
+            
+            'Resize array and add first unique ticker.
+            If sizeUnique = 2 Then
+                ReDim Preserve Unique(sizeUnique + 1)
+                Unique(sizeUnique) = ws.Cells(i, 1).Value
+                
+            'Resize array and add addition unique ticker values.
+            Else
+                counter = 0
+                
+                For j = 2 To (sizeUnique - 1)
+                    If Unique(j) <> ws.Cells(i, 1).Value Then
+                        counter = counter + 1
+                    End If
+                Next j
+                    
+                sizeUnique = UBound(Unique) - LBound(Unique)
+                
+                If counter = sizeUnique - 2 Then
+                    ReDim Preserve Unique(sizeUnique + 1)
+                    Unique(sizeUnique) = ws.Cells(i, 1).Value
+                End If
+            
+            End If
+        
+        Next i
+        
+        sizeUnique = UBound(Unique) - LBound(Unique)
+        
+        'Print headers for summary columns.
+        ws.Cells(1, 9).Value = "Ticker"
+        ws.Cells(1, 10).Value = "Yearly Change"
+        ws.Cells(1, 11).Value = "Percent Change"
+        ws.Cells(1, 12).Value = "Total Stock Volume"
+        
+        'Perform calculations for each ticker value.
+        For k = 2 To (sizeUnique - 1)
+        
+            ws.Cells(k, 9).Value = Unique(k)
+
+            date_open = 0
+            date_close = 0
+            total_vol = 0
+            
+            For l = 2 To lastrow
+                
+                If ws.Cells(l, 1).Value = ws.Cells(k, 9).Value Then
+                    
+                    'Determines opening value at the start of the year.
+                    If date_open = 0 Then
+                        date_open = ws.Cells(l, 2).Value
+                        delta_open = ws.Cells(l, 3).Value
+                    ElseIf date_open > ws.Cells(l, 2).Value Then
+                        date_open = ws.Cells(l, 2).Value
+                        delta_open = ws.Cells(l, 3).Value
+                    End If
+                    
+                    'Determines closing value at the end of the year.
+                    If date_close = 0 Then
+                        date_close = ws.Cells(l, 2).Value
+                        delta_close = ws.Cells(l, 6).Value
+                    ElseIf date_close < ws.Cells(l, 2).Value Then
+                        date_close = ws.Cells(l, 2).Value
+                        delta_close = ws.Cells(l, 6).Value
+                    End If
+                    
+                    'Determines total volume for the year.
+                    total_vol = total_vol + ws.Cells(l, 7).Value
+                
+                End If
+            
+            Next l
+            
+            'Percent change output for instances where the opening value is 0.  Prevents Excel from attempting to divide by 0.
+            If delta_open = 0 Then
+            percent_delta = "DIV 0"
+            
+            'Calculate yearly percent change for all other instances.
+            Else:
+            delta = delta_close - delta_open
+            percent_delta = delta / delta_open
+            
+            End If
+            
+            'Print calculation results for each ticker value.
+            ws.Cells(k, 10).Value = delta
+            ws.Cells(k, 11).Value = percent_delta
+            ws.Cells(k, 12).Value = total_vol
+            
+            'Format Yearly Change column to show as red when change is negative and green when change is positive.
+            If delta > 0 Then
+                ws.Cells(k, 10).Interior.ColorIndex = 4
+            ElseIf delta < 0 Then
+                ws.Cells(k, 10).Interior.ColorIndex = 3
+            End If
+            
+        Next k
+        
+        'Formats output columns.
+        ws.Columns(10).AutoFit
+        ws.Columns(11).NumberFormat = "0.00%"
+        ws.Columns(11).AutoFit
+        ws.Columns(12).AutoFit
+    
+        'Determine last row of output columns.
+        lastrow_target = ws.Cells(Rows.Count, 11).End(xlUp).Row
+        
+        'Print labels for further statics from summary output.
+        ws.Cells(2, 15).Value = "Greatest % Increase"
+        ws.Cells(3, 15).Value = "Greatest % Decrease"
+        ws.Cells(4, 15).Value = "Greatest Total Volume"
+        ws.Cells(1, 16).Value = "Ticker"
+        ws.Cells(1, 17).Value = "Value"
+        
+        m_increase = 0
+        m_decrease = 0
+        m_total = 0
+        
+        'Perform calculations on summary output.
+        For m = 2 To lastrow_target
+        
+            'Determine greatest % increase for the year.
+            If m_increase = 0 Then
+                m_increase = ws.Cells(m, 11).Value
+                c_increase = m
+            ElseIf ws.Cells(m, 11).Value = "DIV 0" Then
+                m_increase = m_increase
+                c_increase = c_increase
+            ElseIf ws.Cells(m, 11).Value > m_increase Then
+                m_increase = ws.Cells(m, 11).Value
+                c_increase = m
+            End If
+                
+            'Determine the greatest % decrease for the year.
+            If m_decrease = 0 Then
+                m_decrease = ws.Cells(m, 11).Value
+                c_decrease = m
+            ElseIf ws.Cells(m, 11).Value = "DIV 0" Then
+                m_decrease = m_decrease
+                c_decrease = c_decrease
+            ElseIf ws.Cells(m, 11).Value < m_decrease Then
+                m_decrease = ws.Cells(m, 11).Value
+                c_decrease = m
+            End If
+                
+            'Determine greatest total volume for the year.
+            If m_total = 0 Then
+                m_total = ws.Cells(m, 12).Value
+                c_total = m
+            ElseIf ws.Cells(m, 12).Value > m_total Then
+                m_total = ws.Cells(m, 12).Value
+                c_total = m
+            End If
+                
+        Next m
+              
+        'Print info related to greatest % increase for the year.
+        ws.Cells(2, 16).Value = ws.Cells(c_increase, 9).Value
+        ws.Cells(2, 17).Value = m_increase
+        
+        'Print info related to greatest % decrease for the year.
+        ws.Cells(3, 16).Value = ws.Cells(c_decrease, 9).Value
+        ws.Cells(3, 17).Value = m_decrease
+        
+        'Print info related to greatest total volume for the year.
+        ws.Cells(4, 16).Value = ws.Cells(c_total, 9).Value
+        ws.Cells(4, 17).Value = m_total
+        
+        'Format output summary for greatest calculations
+        ws.Columns(15).AutoFit
+        ws.Columns(17).AutoFit
+        ws.Range("Q2:Q3").NumberFormat = "0.00%"
+    
+    Next ws
+    
+End Sub
